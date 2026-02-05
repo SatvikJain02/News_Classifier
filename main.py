@@ -1,7 +1,22 @@
 # Command prompt to run:
 # uvicorn main:app --reload
 
-# Imports:
+import re
+import string
+
+def clean_text(text):
+
+    text = text.lower()
+    text = re.sub(r'\([^)]*reuters[^)]*\)\s*-\s*', '', text)
+    text = re.sub(r'\breuters\b', '', text)
+    text = re.sub(r'https?://\S+|www\.\S+', '', text)
+    text = re.sub(r'<.*?>', '', text)
+    text = re.sub(f'[{re.escape(string.punctuation)}]', '', text)
+    text = re.sub(r'\n', ' ', text)
+    text = re.sub(r'\w*\d\w*', '', text)
+
+    return text.strip()
+
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel, ConfigDict, Field
 import tensorflow as tf
@@ -58,24 +73,32 @@ def predict(data: NewsData, username: str = Depends(verify_token)):
     print(f"User {username} is investigating a headline! 🕵️‍♂️")
 
     try:
+
+        # ✨ STEP 0: CLEAN THE TEXT (The missing piece!)
+        cleaned_text = clean_text(data.text)
+
         # Step 1: Preprocessing (Tokenization)
         # Convert text string to sequence of integers
-        sequences = tokenizer.texts_to_sequences([data.text])
+        sequences = tokenizer.texts_to_sequences([cleaned_text])
 
-        # Step 2: Padding
-        # Ensure input is the exact length the model expects
-        padded_input = pad_sequences(sequences, maxlen=MAX_SEQUENCE_LENGTH)
+        # Step 2: Padding (Ensure padding matches training: 'post' or 'pre')
+        # Check if you used padding='post' in training. If so, add it here!
+        padded_input = pad_sequences(sequences, maxlen=MAX_SEQUENCE_LENGTH, padding='post')
 
         # Step 3: Prediction
         prediction_prob = model.predict(padded_input)[0][0] # Assuming binary output (0-1)
 
-        # Step 4: Logic (Thresholding)
-        # Adjust '0.5' based on your model's sensitivity
-        label = "Fake News" if prediction_prob >= 0.5 else "Real News"
+        # Step 4: Logic
+        # NOTE: In your training, 1 was Real and 0 was Fake. 
+        # So if prob > 0.5, it's "Real News"
+        label = "Real News" if prediction_prob >= 0.5 else "Fake News"
+
+        # Calculate display confidence
+        conf = float(prediction_prob) if prediction_prob >= 0.5 else float(1 - prediction_prob)
 
         return Result(
             prediction=label,
-            confidence_score=float(prediction_prob)
+            confidence_score=conf
         )
     
     except Exception as err:
