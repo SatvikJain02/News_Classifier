@@ -6,7 +6,7 @@ import requests
 
 # 🔗 CONFIGURATION
 # Ensure your FastAPI is running on this URL
-API_URL = "https://news-classifier-1.onrender.com"
+API_URL = "https://news-classifier-2.onrender.com"
 
 # 🛠️ HELPER FUNCTIONS
 def login(username, password):
